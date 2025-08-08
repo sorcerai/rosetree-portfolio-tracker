@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, numeric, integer, boolean, index, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, numeric, integer, boolean, index, pgEnum, bigint, primaryKey } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 // Enums
@@ -62,19 +62,70 @@ export const holdings = pgTable('holdings', {
   portfolioAssetIdx: index('holdings_portfolio_asset_idx').on(table.portfolioId, table.assetId),
 }))
 
-// Price candles table (TimescaleDB hypertable)
+// Price candles table (Partitioned by timestamp with bigint optimization)
+// Prices stored as scaled integers: price_scaled = price * 1e8 for exact precision
 export const priceCandles = pgTable('price_candles', {
   assetId: uuid('asset_id').notNull().references(() => assets.id),
   ts: timestamp('ts').notNull(),
-  open: numeric('open', { precision: 20, scale: 8 }).notNull(),
-  high: numeric('high', { precision: 20, scale: 8 }).notNull(),
-  low: numeric('low', { precision: 20, scale: 8 }).notNull(),
-  close: numeric('close', { precision: 20, scale: 8 }).notNull(),
-  volume: numeric('volume', { precision: 20, scale: 0 }),
+  priceScaled: bigint('price_scaled', { mode: 'bigint' }).notNull(), // price * 1e8
+  openScaled: bigint('open_scaled', { mode: 'bigint' }).notNull(),   // open * 1e8
+  highScaled: bigint('high_scaled', { mode: 'bigint' }).notNull(),   // high * 1e8
+  lowScaled: bigint('low_scaled', { mode: 'bigint' }).notNull(),     // low * 1e8
+  closeScaled: bigint('close_scaled', { mode: 'bigint' }).notNull(), // close * 1e8
+  volume: bigint('volume', { mode: 'bigint' }),
   source: text('source').notNull(),
 }, (table) => ({
+  // Composite primary key for upsert idempotency
+  pk: primaryKey({ columns: [table.assetId, table.ts, table.source] }),
+  // Indexes optimized for partition pruning and asset lookups
   assetTimeIdx: index('price_candles_asset_time_idx').on(table.assetId, table.ts.desc()),
   timeIdx: index('price_candles_time_idx').on(table.ts.desc()),
+}))
+
+// Rollup tables for pre-aggregated time-series data
+export const priceCandles5m = pgTable('price_candles_5m', {
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  ts: timestamp('ts').notNull(), // Bucket start time (5-minute intervals)
+  openScaled: bigint('open_scaled', { mode: 'bigint' }).notNull(),
+  highScaled: bigint('high_scaled', { mode: 'bigint' }).notNull(),
+  lowScaled: bigint('low_scaled', { mode: 'bigint' }).notNull(),
+  closeScaled: bigint('close_scaled', { mode: 'bigint' }).notNull(),
+  volume: bigint('volume', { mode: 'bigint' }),
+  source: text('source').notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.assetId, table.ts, table.source] }),
+  assetTimeIdx: index('price_candles_5m_asset_time_idx').on(table.assetId, table.ts.desc()),
+  timeIdx: index('price_candles_5m_time_idx').on(table.ts.desc()),
+}))
+
+export const priceCandles1h = pgTable('price_candles_1h', {
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  ts: timestamp('ts').notNull(), // Bucket start time (hourly intervals)
+  openScaled: bigint('open_scaled', { mode: 'bigint' }).notNull(),
+  highScaled: bigint('high_scaled', { mode: 'bigint' }).notNull(),
+  lowScaled: bigint('low_scaled', { mode: 'bigint' }).notNull(),
+  closeScaled: bigint('close_scaled', { mode: 'bigint' }).notNull(),
+  volume: bigint('volume', { mode: 'bigint' }),
+  source: text('source').notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.assetId, table.ts, table.source] }),
+  assetTimeIdx: index('price_candles_1h_asset_time_idx').on(table.assetId, table.ts.desc()),
+  timeIdx: index('price_candles_1h_time_idx').on(table.ts.desc()),
+}))
+
+export const priceCandles1d = pgTable('price_candles_1d', {
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  ts: timestamp('ts').notNull(), // Bucket start time (daily intervals)
+  openScaled: bigint('open_scaled', { mode: 'bigint' }).notNull(),
+  highScaled: bigint('high_scaled', { mode: 'bigint' }).notNull(),
+  lowScaled: bigint('low_scaled', { mode: 'bigint' }).notNull(),
+  closeScaled: bigint('close_scaled', { mode: 'bigint' }).notNull(),
+  volume: bigint('volume', { mode: 'bigint' }),
+  source: text('source').notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.assetId, table.ts, table.source] }),
+  assetTimeIdx: index('price_candles_1d_asset_time_idx').on(table.assetId, table.ts.desc()),
+  timeIdx: index('price_candles_1d_time_idx').on(table.ts.desc()),
 }))
 
 // Portfolio snapshots table (for daily aggregates)
@@ -122,6 +173,27 @@ export const holdingsRelations = relations(holdings, ({ one }) => ({
 export const priceCandlesRelations = relations(priceCandles, ({ one }) => ({
   asset: one(assets, {
     fields: [priceCandles.assetId],
+    references: [assets.id],
+  }),
+}))
+
+export const priceCandles5mRelations = relations(priceCandles5m, ({ one }) => ({
+  asset: one(assets, {
+    fields: [priceCandles5m.assetId],
+    references: [assets.id],
+  }),
+}))
+
+export const priceCandles1hRelations = relations(priceCandles1h, ({ one }) => ({
+  asset: one(assets, {
+    fields: [priceCandles1h.assetId],
+    references: [assets.id],
+  }),
+}))
+
+export const priceCandles1dRelations = relations(priceCandles1d, ({ one }) => ({
+  asset: one(assets, {
+    fields: [priceCandles1d.assetId],
     references: [assets.id],
   }),
 }))

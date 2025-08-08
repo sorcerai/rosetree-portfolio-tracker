@@ -1,0 +1,38 @@
+{
+  "env": "local-dev",
+  "redis": {
+    "commandTimeoutMs": 45000,
+    "connectTimeoutMs": 15000,
+    "maxRetriesPerRequest": 3,
+    "retryDelayOnFailoverMs": 500,
+    "enableOfflineQueue": true
+  },
+  "session": {
+    "validation": {
+      "slowWarningThresholdMs": 3000,
+      "slowCriticalThresholdMs": 15000,
+      "performanceTargetMs": 2000
+    },
+    "monitoring": {
+      "p95TargetMs": 3000,
+      "p99TargetMs": 8000,
+      "cacheHitRateThreshold": 0.85,
+      "alertingEnabled": false
+    },
+    "timeouts": {
+      "absoluteTtlSec": 2592000,
+      "idleTtlSec": 86400
+    }
+  },
+  "portfolio": {
+    "autoUpdateIntervalMs": 600000,
+    "batchProcessingEnabled": true,
+    "realTimeUpdatesRequired": false
+  },
+  "testing": {
+    "integrationTestTimeoutMs": 15000,
+    "performanceTestP95TargetMs": 3000,
+    "performanceTestP99TargetMs": 8000,
+    "enablePerformanceAssertions": false
+  }
+}

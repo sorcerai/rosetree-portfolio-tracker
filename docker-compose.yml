@@ -1,0 +1,132 @@
+# Docker Compose for rosetree-portfolio local development
+# Supports both PostgreSQL 17 and TimescaleDB with profiles for A/B testing
+
+version: '3.8'
+
+services:
+  # PostgreSQL 17 + pg_cron (default profile)
+  postgres17:
+    build:
+      context: ./docker
+      dockerfile: postgres17.Dockerfile
+    container_name: rosetree-portfolio-postgres17
+    profiles: ["postgres", "default"]
+    environment:
+      POSTGRES_DB: rosetree_portfolio
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres17_data:/var/lib/postgresql/data
+      - ./docker/init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rosetree_portfolio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rosetree-network
+
+  # TimescaleDB + pg_cron (timescale profile)  
+  timescaledb:
+    build:
+      context: ./docker
+      dockerfile: timescaledb.Dockerfile
+    container_name: rosetree-portfolio-timescale
+    profiles: ["timescale"]
+    environment:
+      POSTGRES_DB: rosetree_portfolio
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local_dev_password
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./docker/init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rosetree_portfolio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rosetree-network
+
+  # Redis for caching (latest:* and window:* patterns)
+  redis:
+    image: redis:7.4-alpine
+    container_name: rosetree-portfolio-redis
+    profiles: ["postgres", "timescale", "default", "all"]
+    ports:
+      - "6380:6379"  # Use different port to avoid conflicts
+    volumes:
+      - redis_data:/data
+      - ./docker/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - rosetree-network
+
+  # Next.js development server
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: development
+    container_name: rosetree-portfolio-app
+    profiles: ["app", "all"]
+    environment:
+      # PostgreSQL connection (default)
+      DATABASE_URL: "postgresql://postgres:local_dev_password@postgres17:5432/rosetree_portfolio"
+      # Redis connection
+      REDIS_URL: "redis://redis:6379"  # Internal container port
+      # Development settings
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: 1
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      postgres17:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rosetree-network
+
+  # Performance testing container
+  performance-tester:
+    build:
+      context: ./docker
+      dockerfile: performance-tester.Dockerfile
+    container_name: rosetree-portfolio-tester
+    profiles: ["test"]
+    environment:
+      POSTGRES_URL: "postgresql://postgres:local_dev_password@postgres17:5432/rosetree_portfolio"
+      TIMESCALE_URL: "postgresql://postgres:local_dev_password@timescaledb:5432/rosetree_portfolio"
+      REDIS_URL: "redis://redis:6379"  # Internal container port
+    volumes:
+      - ./docker/performance-tests:/tests:ro
+      - ./test-results:/results
+    networks:
+      - rosetree-network
+
+volumes:
+  postgres17_data:
+    name: rosetree-portfolio-postgres17-data
+  timescale_data:
+    name: rosetree-portfolio-timescale-data  
+  redis_data:
+    name: rosetree-portfolio-redis-data
+
+networks:
+  rosetree-network:
+    name: rosetree-portfolio-network
+    driver: bridge

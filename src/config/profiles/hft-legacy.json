@@ -1,0 +1,38 @@
+{
+  "env": "hft-legacy",
+  "redis": {
+    "commandTimeoutMs": 3000,
+    "connectTimeoutMs": 5000,
+    "maxRetriesPerRequest": 3,
+    "retryDelayOnFailoverMs": 100,
+    "enableOfflineQueue": false
+  },
+  "session": {
+    "validation": {
+      "slowWarningThresholdMs": 5,
+      "slowCriticalThresholdMs": 10,
+      "performanceTargetMs": 2
+    },
+    "monitoring": {
+      "p95TargetMs": 10,
+      "p99TargetMs": 50,
+      "cacheHitRateThreshold": 0.95,
+      "alertingEnabled": true
+    },
+    "timeouts": {
+      "absoluteTtlSec": 2592000,
+      "idleTtlSec": 43200
+    }
+  },
+  "portfolio": {
+    "autoUpdateIntervalMs": 1000,
+    "batchProcessingEnabled": false,
+    "realTimeUpdatesRequired": true
+  },
+  "testing": {
+    "integrationTestTimeoutMs": 50,
+    "performanceTestP95TargetMs": 10,
+    "performanceTestP99TargetMs": 50,
+    "enablePerformanceAssertions": true
+  }
+}

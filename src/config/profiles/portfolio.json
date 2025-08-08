@@ -1,0 +1,38 @@
+{
+  "env": "portfolio",
+  "redis": {
+    "commandTimeoutMs": 30000,
+    "connectTimeoutMs": 10000,
+    "maxRetriesPerRequest": 5,
+    "retryDelayOnFailoverMs": 200,
+    "enableOfflineQueue": true
+  },
+  "session": {
+    "validation": {
+      "slowWarningThresholdMs": 2000,
+      "slowCriticalThresholdMs": 10000,
+      "performanceTargetMs": 1000
+    },
+    "monitoring": {
+      "p95TargetMs": 2000,
+      "p99TargetMs": 5000,
+      "cacheHitRateThreshold": 0.90,
+      "alertingEnabled": true
+    },
+    "timeouts": {
+      "absoluteTtlSec": 2592000,
+      "idleTtlSec": 86400
+    }
+  },
+  "portfolio": {
+    "autoUpdateIntervalMs": 300000,
+    "batchProcessingEnabled": true,
+    "realTimeUpdatesRequired": false
+  },
+  "testing": {
+    "integrationTestTimeoutMs": 10000,
+    "performanceTestP95TargetMs": 2000,
+    "performanceTestP99TargetMs": 5000,
+    "enablePerformanceAssertions": false
+  }
+}
